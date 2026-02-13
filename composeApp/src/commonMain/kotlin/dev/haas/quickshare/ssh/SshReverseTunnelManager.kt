@@ -6,11 +6,9 @@ import com.jcraft.jsch.Session
 import java.io.BufferedReader
 import java.io.InputStreamReader
 
-/**
- * Simple implementation of: ssh -R 80:localhost:8080 nokey@localhost.run
- */
 class SshReverseTunnelManager(
-    private val onLog: (String) -> Unit
+    private val onLog: (String) -> Unit,
+    private val onUrlAssigned: (String) -> Unit
 ) {
     private var session: Session? = null
     private var channel: ChannelShell? = null
@@ -62,14 +60,23 @@ class SshReverseTunnelManager(
                     
                     // Read loop
                     var line: String?
+                    // Regex to find the URL: https://[something].lhr.life
+                    val urlRegex = Regex("https://[a-zA-Z0-9-]+\\.lhr\\.life")
+
                     while (isRunning) {
                         line = reader.readLine()
                         if (line == null) break
                         
-                        // Filter out ANSI escape codes (QR codes) and empty lines
-                        // \u001B is the ESC character used in ANSI sequences
                         if (line.isNotBlank() && !line.contains("\u001B")) {
                             onLog("[REMOTE]: $line") 
+                            
+                            // Check for URL
+                            val match = urlRegex.find(line)
+                            if (match != null) {
+                                val url = match.value
+                                onLog("→ Tunnel URL found: $url")
+                                onUrlAssigned(url)
+                            }
                         }
                     }
                 }
@@ -99,6 +106,7 @@ class SshReverseTunnelManager(
         }
     }
 }
+
 
 
 
