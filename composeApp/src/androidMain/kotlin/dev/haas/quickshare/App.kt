@@ -40,10 +40,14 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import dev.haas.quickshare.ssh.SshReverseTunnelManager
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import android.content.Intent
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import android.Manifest
+import android.os.Build
+import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
 
 val CustomBlack = Color(0xFF16161D)
 
@@ -73,58 +77,35 @@ fun App() {
     ) {
         val context = LocalContext.current
         
-        var logs by remember { mutableStateOf(listOf<String>()) }
-        var tunnelUrl by remember { mutableStateOf<String?>(null) }
-        var sessionToken by remember { mutableStateOf<String?>(null) }
-        var selectedUris by remember { mutableStateOf<List<Uri>>(emptyList()) }
-        var isServerRunning by remember { mutableStateOf(false) }
-        var secondsRunning by remember { mutableStateOf(0) }
-        
-        LaunchedEffect(isServerRunning) {
-            if (isServerRunning) {
-                val startTime = System.currentTimeMillis()
-                while (isServerRunning) {
-                    secondsRunning = ((System.currentTimeMillis() - startTime) / 1000).toInt()
-                    delay(1000)
-                }
-            } else {
-                secondsRunning = 0
+        val logs by TunnelState.logs.collectAsStateWithLifecycle()
+        val tunnelUrl by TunnelState.tunnelUrl.collectAsStateWithLifecycle()
+        val sessionToken by TunnelState.sessionToken.collectAsStateWithLifecycle()
+        val selectedUris by TunnelState.selectedUris.collectAsStateWithLifecycle()
+        val isServerRunning by TunnelState.isServerRunning.collectAsStateWithLifecycle()
+        val secondsRunning by TunnelState.secondsRunning.collectAsStateWithLifecycle()
+
+        val permissionLauncher = rememberLauncherForActivityResult(
+            ActivityResultContracts.RequestPermission()
+        ) { isGranted ->
+            if (!isGranted) {
+                Toast.makeText(context, "Notification permission is required for background sharing", Toast.LENGTH_LONG).show()
             }
         }
 
-        val webServer = remember { 
-            WebServer(context.contentResolver) { msg ->
-                logs = logs + "[Server]: $msg"
-            } 
-        }
-        
-        val tunnelManager = remember {
-            val manager = SshReverseTunnelManager(
-                onLog = { msg ->
-                    if (logs.size > 100) logs = logs.drop(1)
-                    logs = logs + msg
-                },
-                onUrlAssigned = { url ->
-                    tunnelUrl = url.trim()
+        LaunchedEffect(Unit) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                    permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                 }
-            )
-            manager
-        }
-
-        DisposableEffect(Unit) {
-            onDispose {
-                webServer.stop()
-                tunnelManager.stopTunnel()
             }
         }
-
 
         val pickMedia = rememberLauncherForActivityResult(
             contract = ActivityResultContracts.PickMultipleVisualMedia(50)
         ) { uris ->
             if (uris.isNotEmpty()) {
-                selectedUris = selectedUris + uris
-                logs = logs + "Added ${uris.size} photos."
+                TunnelState.setSelectedUris(selectedUris + uris)
+                TunnelState.appendLog("Added ${uris.size} photos.")
             }
         }
 
@@ -158,11 +139,10 @@ fun App() {
                         tunnelUrl = tunnelUrl,
                         sessionToken = sessionToken,
                         onStop = {
-                            webServer.stop()
-                            tunnelManager.stopTunnel()
-                            isServerRunning = false
-                            tunnelUrl = null
-                            sessionToken = null
+                            val intent = Intent(context, TunnelService::class.java).apply {
+                                action = TunnelService.ACTION_STOP
+                            }
+                            context.startService(intent)
                         }
                     )
                 } else {
@@ -240,7 +220,7 @@ fun App() {
                                         PhotoGridItem(
                                             uri = uri,
                                             onRemove = {
-                                                selectedUris = selectedUris - uri
+                                                TunnelState.setSelectedUris(selectedUris - uri)
                                             }
                                         )
                                     }
@@ -254,15 +234,14 @@ fun App() {
                     Button(
                         onClick = {
                             if (selectedUris.isNotEmpty()) {
-                                try {
-                                    val token = webServer.start(selectedUris, 8080)
-                                    sessionToken = token
-                                    tunnelManager.startTunnel()
-                                    isServerRunning = true
-                                    logs = listOf("Starting secure session...")
-                                } catch (e: Exception) {
-                                    logs = logs + "Error: ${e.message}"
-                                    e.printStackTrace()
+                                val intent = Intent(context, TunnelService::class.java).apply {
+                                    action = TunnelService.ACTION_START
+                                    putParcelableArrayListExtra(TunnelService.EXTRA_URIS, ArrayList(selectedUris))
+                                }
+                                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                                    context.startForegroundService(intent)
+                                } else {
+                                    context.startService(intent)
                                 }
                             }
                         },
