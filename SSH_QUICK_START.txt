@@ -1,0 +1,202 @@
+QUICK START GUIDE - SSH Reverse Tunneling
+==========================================
+
+┌─────────────────────────────────────────────────────────────────────┐
+│  SIMPLEST USAGE - 3 Lines                                           │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                       │
+│  val tunnel = SimpleTunnelManager(8080)                             │
+│  Thread { tunnel.start() }.start()                                  │
+│  // Tunnel running in background now!                              │
+│                                                                       │
+└─────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────┐
+│  WHAT IT DOES                                                       │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                       │
+│  Connects to:  localhost.run (no auth needed)                       │
+│  Forwards:     port 80 → your localhost:8080                        │
+│  Result:       Your local app is now publicly accessible            │
+│                                                                       │
+│  Equivalent to:                                                      │
+│  $ ssh -R 80:localhost:8080 nokey@localhost.run                     │
+│                                                                       │
+└─────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────┐
+│  OUTPUT YOU'LL SEE                                                   │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                       │
+│  → Connecting to localhost.run...                                   │
+│  → Establishing SSH connection...                                   │
+│  → Setting up reverse tunnel...                                     │
+│  ✓ Tunnel established on port: 80                                   │
+│                                                                       │
+│  Your service is available at:                                      │
+│  https://[generated-id].lhr.life                                    │
+│                                                                       │
+└─────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────┐
+│  STRUCTURE                                                          │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                       │
+│  SimpleTunnelManager (USE THIS!)                                    │
+│  └─ start()  → Create tunnel (blocking, run in thread)             │
+│  └─ stop()   → Close tunnel                                         │
+│  └─ isRunning() → Check status                                      │
+│                                                                       │
+│  SshReverseTunnelManager (Lower-level)                              │
+│  └─ connect()    → Establish tunnel                                │
+│  └─ disconnect() → Close tunnel                                     │
+│  └─ keepAlive()  → Keep tunnel running (blocking)                  │
+│  └─ isConnected() → Check status                                    │
+│                                                                       │
+│  ReverseTunnelListener (Events)                                     │
+│  └─ onTunnelEstablished(port)                                       │
+│  └─ onTunnelClosed(reason)                                          │
+│  └─ onError(error)                                                  │
+│  └─ onStatusChanged(message)                                        │
+│                                                                       │
+└─────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────┐
+│  EXAMPLES                                                           │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                       │
+│  Example 1: Super Simple                                            │
+│  ──────────────────────────────────────────────────────────────────  │
+│  val tunnel = SimpleTunnelManager(8080)                             │
+│  Thread { tunnel.start() }.start()                                  │
+│  tunnel.stop()  // Later                                            │
+│                                                                       │
+│  Example 2: With Listener                                           │
+│  ──────────────────────────────────────────────────────────────────  │
+│  Thread {                                                            │
+│      val tunnel = buildReverseTunnel {                              │
+│          remoteHost("localhost.run")                                │
+│          remoteUser("nokey")                                        │
+│          localPort(8080)                                            │
+│          listener(SimpleTunnelListener())                           │
+│      }                                                               │
+│      tunnel.connect()                                               │
+│      tunnel.keepAlive()                                             │
+│  }.start()                                                           │
+│                                                                       │
+│  Example 3: Android ViewModel                                       │
+│  ──────────────────────────────────────────────────────────────────  │
+│  class TunnelViewModel {                                            │
+│      private var tunnel: SshReverseTunnelManager? = null            │
+│      private var thread: Thread? = null                             │
+│                                                                       │
+│      fun start(port: Int) {                                         │
+│          thread = Thread {                                          │
+│              tunnel = ReverseTunnelExamples                         │
+│                  .createLocalhostRunTunnel(port,                    │
+│                      SimpleTunnelListener())                        │
+│              tunnel?.connect()                                      │
+│              tunnel?.keepAlive()                                    │
+│          }                                                           │
+│          thread?.start()                                            │
+│      }                                                               │
+│                                                                       │
+│      fun stop() {                                                   │
+│          tunnel?.disconnect()                                       │
+│          thread?.interrupt()                                        │
+│      }                                                               │
+│  }                                                                   │
+│                                                                       │
+│  Example 4: Multiple Tunnels                                        │
+│  ──────────────────────────────────────────────────────────────────  │
+│  val web = SimpleTunnelManager(3000)  // React                     │
+│  val api = SimpleTunnelManager(8000)  // API                       │
+│                                                                       │
+│  Thread { web.start() }.start()                                     │
+│  Thread { api.start() }.start()                                     │
+│                                                                       │
+│  // Both now public!                                                │
+│                                                                       │
+└─────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────┐
+│  FILES CREATED                                                      │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                       │
+│  composeApp/src/commonMain/kotlin/dev/haas/quickshare/ssh/         │
+│                                                                       │
+│  ✓ SimpleTunnelManager.kt          ← USE THIS (simplest)           │
+│  ✓ SshReverseTunnelManager.kt       ← Core logic                    │
+│  ✓ SshReverseTunnelConfig.kt        ← Configuration                 │
+│  ✓ ReverseTunnelListener.kt         ← Event interface               │
+│  ✓ ReverseTunnelBuilder.kt          ← DSL builder                   │
+│  ✓ ReverseTunnelExamples.kt         ← Pre-configured                │
+│  ✓ SshConnectionException.kt        ← Exception class               │
+│  ✓ QuickStart.kt                    ← More examples                 │
+│  ✓ SIMPLE_README.md                 ← Quick guide                   │
+│  ✓ README.md                        ← Full docs                     │
+│                                                                       │
+└─────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────┐
+│  FLOW DIAGRAM                                                       │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                       │
+│  User's App (localhost:8080)                                        │
+│          ↓                                                           │
+│  SimpleTunnelManager.start()                                        │
+│          ↓                                                           │
+│  SshReverseTunnelManager.connect()                                  │
+│          ↓                                                           │
+│  Connect to localhost.run SSH                                       │
+│          ↓                                                           │
+│  Setup: -R 80:localhost:8080                                        │
+│          ↓                                                           │
+│  tunnel.keepAlive() (keeps running)                                │
+│          ↓                                                           │
+│  Public URL: https://[id].lhr.life                                 │
+│          ↓                                                           │
+│  World can access your app!                                         │
+│          ↓                                                           │
+│  tunnel.stop() or tunnel.disconnect()                              │
+│          ↓                                                           │
+│  Tunnel closed                                                      │
+│                                                                       │
+└─────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────┐
+│  KEY FEATURES                                                       │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                       │
+│  ✅ No authentication needed (localhost.run doesn't require it)      │
+│  ✅ Super simple API                                                │
+│  ✅ Runs in background (proper threading)                          │
+│  ✅ Event-driven (listen to tunnel status)                         │
+│  ✅ Stoppable anytime                                              │
+│  ✅ Multiple tunnels supported                                     │
+│  ✅ Kotlin/Compose friendly                                        │
+│  ✅ Production ready                                               │
+│                                                                       │
+└─────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────┐
+│  THREAD MODEL                                                       │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                       │
+│  BLOCKING (run in background thread):                               │
+│  • start()                                                          │
+│  • connect()                                                        │
+│  • keepAlive()                                                      │
+│                                                                       │
+│  NON-BLOCKING (safe to call anytime):                               │
+│  • stop()                                                           │
+│  • disconnect()                                                     │
+│  • isRunning()                                                      │
+│  • isConnected()                                                    │
+│                                                                       │
+└─────────────────────────────────────────────────────────────────────┘
+
+✅ PROJECT BUILDS SUCCESSFULLY!
+
+Start using it now - just copy SimpleTunnelManager(8080) example!
+
