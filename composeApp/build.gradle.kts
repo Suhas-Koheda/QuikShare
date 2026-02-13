@@ -26,6 +26,7 @@ kotlin {
             implementation(libs.ktor.server.content.negotiation)
             implementation(libs.ktor.serialization.kotlinx.json)
             implementation(libs.zxing.core)
+            implementation(libs.posthog.android)
         }
         commonMain.dependencies {
             implementation(libs.compose.runtime)

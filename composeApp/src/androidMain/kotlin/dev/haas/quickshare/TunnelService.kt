@@ -13,6 +13,7 @@ import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import dev.haas.quickshare.ssh.SshReverseTunnelManager
 import kotlinx.coroutines.*
+import com.posthog.PostHog
 
 class TunnelService : Service() {
 
@@ -79,6 +80,10 @@ class TunnelService : Service() {
                         val trimmedUrl = url.trim()
                         TunnelState.setTunnelUrl(trimmedUrl)
                         updateNotification("Sharing Active: $trimmedUrl")
+                        PostHog.capture(
+                            event = "sharing_url_assigned",
+                            properties = mapOf("url" to trimmedUrl)
+                        )
                     }
                 )
 
@@ -98,11 +103,19 @@ class TunnelService : Service() {
                     startTimer()
                 } else {
                     TunnelState.appendLog("Failed to start web server.")
+                    PostHog.capture(
+                        event = "sharing_error",
+                        properties = mapOf("error" to "Failed to start web server")
+                    )
                     stopSharing()
                 }
 
             } catch (e: Exception) {
                 TunnelState.appendLog("Error starting service: ${e.message}")
+                PostHog.capture(
+                    event = "sharing_error",
+                    properties = mapOf("error" to e.message.toString())
+                )
                 e.printStackTrace()
                 stopSharing()
             }

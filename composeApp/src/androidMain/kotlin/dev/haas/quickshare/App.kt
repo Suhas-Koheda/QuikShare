@@ -25,6 +25,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -48,6 +51,7 @@ import android.Manifest
 import android.os.Build
 import android.content.pm.PackageManager
 import androidx.core.content.ContextCompat
+import com.posthog.PostHog
 
 val CustomBlack = Color(0xFF16161D)
 
@@ -106,6 +110,10 @@ fun App() {
             if (uris.isNotEmpty()) {
                 TunnelState.setSelectedUris(selectedUris + uris)
                 TunnelState.appendLog("Added ${uris.size} photos.")
+                PostHog.capture(
+                    event = "photos_added",
+                    properties = mapOf("count" to uris.size)
+                )
             }
         }
 
@@ -143,6 +151,7 @@ fun App() {
                                 action = TunnelService.ACTION_STOP
                             }
                             context.startService(intent)
+                            PostHog.capture("sharing_stopped")
                         }
                     )
                 } else {
@@ -221,6 +230,7 @@ fun App() {
                                             uri = uri,
                                             onRemove = {
                                                 TunnelState.setSelectedUris(selectedUris - uri)
+                                                PostHog.capture("photo_removed")
                                             }
                                         )
                                     }
@@ -243,6 +253,10 @@ fun App() {
                                 } else {
                                     context.startService(intent)
                                 }
+                                PostHog.capture(
+                                    event = "sharing_started",
+                                    properties = mapOf("photo_count" to selectedUris.size)
+                                )
                             }
                         },
                         enabled = selectedUris.isNotEmpty(),
@@ -420,18 +434,42 @@ fun SessionActiveCard(
                 QRCodeView(fullUrl)
                 Spacer(modifier = Modifier.height(16.dp))
                 
+                val clipboardManager = LocalClipboardManager.current
+                val context = LocalContext.current
+                
                 Surface(
                     color = MaterialTheme.colorScheme.surfaceVariant,
                     shape = RoundedCornerShape(8.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(
-                        text = fullUrl,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.padding(12.dp)
-                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                clipboardManager.setText(AnnotatedString(fullUrl))
+                                Toast.makeText(context, "Link copied to clipboard", Toast.LENGTH_SHORT).show()
+                                com.posthog.PostHog.capture("link_copied")
+                                com.posthog.PostHog.flush()
+                            }
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Text(
+                            text = fullUrl,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.weight(1f, fill = false)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Icon(
+                            imageVector = Icons.Default.ContentCopy,
+                            contentDescription = "Copy Link",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
                 }
             } else {
                 CircularProgressIndicator(color = MaterialTheme.colorScheme.secondary)

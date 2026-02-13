@@ -4,6 +4,7 @@ import android.net.Uri
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import com.posthog.PostHog
 
 object TunnelState {
     private val _logs = MutableStateFlow<List<String>>(emptyList())
@@ -31,6 +32,12 @@ object TunnelState {
         } else {
             _logs.value = current + msg
         }
+        
+        // Also capture the log message in PostHog for remote debugging
+        PostHog.capture(
+            event = "app_log",
+            properties = mapOf("message" to msg)
+        )
     }
 
     fun setTunnelUrl(url: String?) {

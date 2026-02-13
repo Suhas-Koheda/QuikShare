@@ -19,6 +19,7 @@ ktor = "3.1.0"
 kotlinx-serialization = "1.7.3"
 zxing = "3.5.3"
 composeIcons = "1.7.3"
+posthog = "3.1.7"
 
 [libraries]
 zxing-core = { module = "com.google.zxing:core", version.ref = "zxing" }
@@ -49,6 +50,7 @@ compose-uiToolingPreview = { module = "org.jetbrains.compose.ui:ui-tooling-previ
 compose-material-icons-extended = { module = "org.jetbrains.compose.material:material-icons-extended", version.ref = "composeIcons" }
 jsch = { module = "com.jcraft:jsch", version.ref = "jsch" }
 qrcode = { module = "io.github.g0dkar:qrcode-kotlin", version.ref = "qrcode" }
+posthog-android = { module = "com.posthog:posthog-android", version.ref = "posthog" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }
