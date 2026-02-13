@@ -27,7 +27,6 @@ import kotlinx.serialization.Serializable
 import java.io.ByteArrayOutputStream
 import java.util.UUID
 
-// Data model for API response
 @Serializable
 data class SharedPhoto(
     val id: String,
@@ -50,7 +49,6 @@ class WebServer(
         sharedUris.clear()
         sharedUris.addAll(uris)
         
-        // Generate new session token
         val token = UUID.randomUUID().toString().take(8)
         currentSessionToken = token
         
@@ -68,7 +66,6 @@ class WebServer(
             }
             
             routing {
-                // 1. List Photos Endpoint
                 get("/photos") {
                     if (!isValidToken(call, token)) return@get
                     
@@ -86,7 +83,6 @@ class WebServer(
                     call.respond(photos)
                 }
 
-                // 2. Thumbnail Endpoint
                 get("/thumbnail/{id}") {
                     if (!isValidToken(call, token)) return@get
                     val id = call.parameters["id"]?.toIntOrNull()
@@ -104,7 +100,6 @@ class WebServer(
                     }
                 }
 
-                // 3. Download Endpoint (Streaming)
                 get("/download/{id}") {
                     if (!isValidToken(call, token)) return@get
                     val id = call.parameters["id"]?.toIntOrNull()
@@ -117,7 +112,6 @@ class WebServer(
                             
                             call.response.headers.append("Content-Disposition", "attachment; filename=\"$fileName\"")
                             
-                            // Stream content directly to response without loading into memory
                             val stream = contentResolver.openInputStream(uri)
                             if (stream != null) {
                                 call.respondOutputStream(ContentType.parse(mimeType)) {
@@ -137,7 +131,6 @@ class WebServer(
                     }
                 }
                 
-                // Root: Serve HTML Gallery
                 get("/") {
                     if (!isValidToken(call, token)) return@get
                     
@@ -233,19 +226,12 @@ class WebServer(
         return token
     }
 
-    // ... stop, isValidToken, getFileName, getFileSize implementation remains same ...
-    // Note: I need to preserve them or just replace the specific sections if strict.
-    // Tool `replace_file_content` replaces contiguous block.
-    // I will replace from "3. Download Endpoint" to end of file,
-    // copying the helper functions back but optimizing getThumbnailBytes.
-
     fun stop() {
         if (server != null) {
             onLog("Stopping HTTP server...")
             server?.stop(100, 1000)
             server = null
             sharedUris.clear()
-            // currentSessionToken = null // keep valid for UI history if needed, but safer to clear
             currentSessionToken = null
         }
     }
@@ -292,20 +278,16 @@ class WebServer(
         return result
     }
 
-    // Compress to 20% quality thumbnail (Memory Efficient)
     private fun getThumbnailBytes(uri: Uri): ByteArray {
-        // 1. Calculate dimensions
         val options = BitmapFactory.Options()
         options.inJustDecodeBounds = true
         contentResolver.openInputStream(uri)?.use { 
             BitmapFactory.decodeStream(it, null, options) 
         }
 
-        // 2. Calculate sample size (target 512px)
         options.inSampleSize = calculateInSampleSize(options, 512, 512)
         options.inJustDecodeBounds = false
         
-        // 3. Decode with sample size
         val inputStream = contentResolver.openInputStream(uri) ?: return ByteArray(0)
         val original = BitmapFactory.decodeStream(inputStream, null, options)
         inputStream.close()
@@ -313,7 +295,6 @@ class WebServer(
         if (original == null) return ByteArray(0)
         
         val out = ByteArrayOutputStream()
-        // 4. Compress to 20% JPEG
         original.compress(Bitmap.CompressFormat.JPEG, 20, out)
         original.recycle()
         return out.toByteArray()
