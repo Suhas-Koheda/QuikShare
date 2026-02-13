@@ -111,6 +111,13 @@ fun App() {
             manager
         }
 
+        DisposableEffect(Unit) {
+            onDispose {
+                webServer.stop()
+                tunnelManager.stopTunnel()
+            }
+        }
+
 
         val pickMedia = rememberLauncherForActivityResult(
             contract = ActivityResultContracts.PickMultipleVisualMedia(50)
